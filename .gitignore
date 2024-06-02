@@ -1,0 +1,7 @@
+/.idea
+/node_modules
+/.env
+/src/config.json
+/src/musicas
+/src/deploySlashCommands.js
+infoMusicas.json
