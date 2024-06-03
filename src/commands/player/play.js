@@ -8,15 +8,22 @@ const {
     generateDependencyReport
 } = require('@discordjs/voice');
 
-const download = require('../../utils/music');
 const path = require('path');
+const {download} = require('../../utils/music');
 require('libsodium-wrappers');
+const queue = require('../../shared/queue');
+const searchVideo = require('../../services/Search');
+const getPlaylist = require('../../services/Playlist');
+const {cache, getVideoId} = require('../../utils/music')
+const ytpl = require('ytpl');
+
+let state = { isPlaying: false}
 
 const data = new SlashCommandBuilder()
     .setName('play')
     .setDescription('Toca uma música')
     .addStringOption(option =>
-        option.setName('url')
+        option.setName('query')
             .setDescription('URL do vídeo ou playlist do YouTube')
             .setRequired(true)
     );
@@ -29,55 +36,179 @@ async function execute(interaction) {
         .setThumbnail(interaction.guild.iconURL())
         .setColor(0x0099FF)
 
-    await interaction.reply({embeds: [embed]});
-
-    const url = interaction.options.getString('url');
+    const url = interaction.options.getString('query');
 
     if (!interaction.member.voice.channel) {
         return interaction.reply('Você precisa estar em um canal de voz para usar esse comando!');
     }
 
-    try {
-        const downloadResult = await download(url);
-        const musicPath = downloadResult.filePath;
-        const musica = downloadResult.musica;
-
-        const channel = interaction.member.voice.channel;
-
-        const connection = joinVoiceChannel({
-            channelId: channel.id,
-            guildId: channel.guild.id,
-            adapterCreator: channel.guild.voiceAdapterCreator,
-        });
-
-        connection.on(VoiceConnectionStatus.Ready, () => {
-            console.log('The bot has connected to the channel!');
-        });
-
-        const player = createAudioPlayer();
-
-        player.on(AudioPlayerStatus.Idle, () => {
-            console.log('Playback finished.');
-            connection.destroy();
-        });
-
-        connection.subscribe(player);
-
-        const resource = createAudioResource(path.resolve(musicPath));
-        player.play(resource);
-
-        const tocando  = new EmbedBuilder()
-            .setTitle("Tocando")
-            .setDescription(`[${musica.nome}](${musica.url})`)
-            .setAuthor({name: interaction.user.username, iconURL: interaction.user.avatarURL()})
-            .setThumbnail(musica.capa)
-            .setColor(0x57F287)
-
-        interaction.editReply({embeds: [tocando]});
-    } catch (error) {
-        console.error(`Erro ao executar o comando play: ${error}`);
-        interaction.reply('Houve um erro ao tentar reproduzir a música.');
+    if (url.includes("v=") && !url.includes("list=")) {
+        await interaction.reply({embeds: [embed]});
+        await playMusic(interaction, url);
+    } else if (url.includes("list=")) {
+        let id = await ytpl.getPlaylistID(url)
+        let videos = await ytpl(id, {limit: 1000})
+        await playPlaylist(interaction, videos, url)
+    } else {
+        await interaction.reply({embeds: [embed]});
+        let videoUrl = await searchVideo(url)
+        await playMusic(interaction, videoUrl);
     }
 }
 
-module.exports = {data, execute};
+function formatDuration(duration) {
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+async function playMusic(interaction, url) {
+    try {
+        let id = getVideoId(url)
+        let musica;
+        if(cache.musicDict[id]){
+            musica = cache.musicDict[id]
+        }else{
+            musica = await download(url);
+        }
+
+        queue.push(musica);
+
+        if (!state.isPlaying) {
+            const channel = interaction.member.voice.channel;
+
+            const connection = joinVoiceChannel({
+                channelId: channel.id,
+                guildId: channel.guild.id,
+                adapterCreator: channel.guild.voiceAdapterCreator,
+            });
+
+            connection.on(VoiceConnectionStatus.Ready, () => {
+                console.log('The bot has connected to the channel!');
+            });
+
+            const player = createAudioPlayer();
+
+            player.on(AudioPlayerStatus.Idle, async () => {
+                console.log('Playback finished.');
+                if (queue.length > 0) {
+                    await playNext(interaction, connection, player, "play2");
+                } else {
+                    state.isPlaying = false;
+                    connection.destroy();
+                }
+            });
+
+            connection.subscribe(player);
+
+            await playNext(interaction, connection, player, "play");
+        } else {
+            const addedToQueueEmbed = new EmbedBuilder()
+                .setTitle("🎵 Adicionado à fila")
+                .setDescription(`\`${formatDuration(musica.duracao)}\` [${musica.nome}](${musica.url})`)
+                .setAuthor({name: interaction.user.username, iconURL: interaction.user.avatarURL()})
+                .setThumbnail(musica.capa)
+                .setColor(0x57F287)
+                .setFooter({text: `Posição na fila: ${queue.length}`, iconUrl: interaction.guild.iconURL()});
+
+            await interaction.editReply({embeds: [addedToQueueEmbed]});
+        }
+    } catch (error) {
+        console.error(`Erro ao executar o comando play: ${error}`);
+    }
+}
+
+async function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function playPlaylist(interaction, videos, url) {
+    try {
+        console.log('Iniciando o carregamento da playlist');
+
+        const embed = new EmbedBuilder()
+            .setTitle("Carregando Playlist")
+            .setDescription("Carregando a playlist. Por favor, aguarde...")
+            .setAuthor({name: interaction.user.username, iconURL: interaction.user.avatarURL()})
+            .setThumbnail(interaction.guild.iconURL())
+            .setColor(0x0099FF);
+
+        await interaction.reply({embeds: [embed]});
+
+        let isFirst = true;
+
+        for(const video of videos.items){
+            if(isFirst){
+                await playMusic(interaction, video.url);
+                isFirst = false;
+            }else{
+                let id = video.id;
+                if(cache.musicDict[id]){
+                    queue.push(cache.musicDict[id]);
+                }else{
+                    const musica = await download(video.url);
+                    if(musica != null) {
+                        queue.push(musica);
+                        //await sleep(500);
+                    }
+                }
+            }
+        }
+
+        // Esperar que todos os downloads sejam concluídos
+        // await Promise.all(downloadPromises);
+
+        console.log('Todos os vídeos da playlist foram baixados');
+
+        const playlistEmbed = new EmbedBuilder()
+            .setTitle("🎵 Playlist Adicionada")
+            .setDescription(`${videos.items.length} músicas da [playlist](${url}) foram adicionados à fila!`)
+            .setAuthor({name: interaction.user.username, iconURL: interaction.user.avatarURL()})
+            .setThumbnail(interaction.guild.iconURL())
+            .setColor(0x57F287)
+
+        await interaction.editReply({embeds: [playlistEmbed]});
+
+    } catch (error) {
+        console.error(`Erro ao tocar a playlist: ${error}`);
+    }
+}
+
+
+async function playNext(interaction, connection, player, command) {
+    if (queue.length === 0) {
+        state.isPlaying = false;
+        connection.destroy();
+        return;
+    }
+
+    const nextMusic = queue.shift();
+    const musicPath = path.join(__dirname, `../../musicas/${nextMusic.audioFile}`);
+    const resource = createAudioResource(path.resolve(musicPath));
+
+    player.play(resource);
+    state.isPlaying = true;
+
+    const tocando = new EmbedBuilder()
+        .setTitle("🎵 Tocando")
+        .setDescription(`\`${formatDuration(nextMusic.duracao)}\` [${nextMusic.nome}](${nextMusic.url})`)
+        .setAuthor({name: interaction.user.username, iconURL: interaction.user.avatarURL()})
+        .setThumbnail(nextMusic.capa)
+        .setColor(0x57F287);
+
+    const pulando = new EmbedBuilder()
+        .setTitle("🎵 Pulando")
+        .setDescription(`\`${formatDuration(nextMusic.duracao)}\` [${nextMusic.nome}](${nextMusic.url})`)
+        .setAuthor({name: interaction.user.username, iconURL: interaction.user.avatarURL()})
+        .setThumbnail(nextMusic.capa)
+        .setColor(0x57F287);
+    if (command === "play") {
+        await interaction.editReply({embeds: [tocando]});
+    }else if(command === "play2" ){
+        await interaction.followUp({embeds: [tocando]});
+    } else {
+        await interaction.reply({embeds: [pulando]});
+    }
+}
+
+module.exports = {data, execute, state, playNext};

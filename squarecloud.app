@@ -1,0 +1,5 @@
+MAIN=src/bot.js
+MEMORY=2048
+VERSION=recommended
+DISPLAY_NAME=Manel Gomi
+AUTORESTART=true

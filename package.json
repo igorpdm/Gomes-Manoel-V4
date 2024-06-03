@@ -8,13 +8,13 @@
   "private": true,
   "dependencies": {
     "@discordjs/voice": "^0.17.0",
+    "@distube/ytdl-core": "^4.13.3",
     "discord.js": "^14.15.2",
     "dotenv": "^16.4.5",
     "fs": "^0.0.1-security",
+    "googleapis": "^137.1.0",
     "libsodium-wrappers": "^0.7.13",
     "path": "^0.12.7",
-    "youtube-search-api": "^1.2.1",
-    "ytdl-core": "^4.11.5",
     "ytpl": "^2.3.0"
   }
 }

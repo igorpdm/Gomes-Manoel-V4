@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { token } = require('./config.json');
+const { loadMusicCache } = require('./utils/music');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
 client.commands = new Collection();
@@ -27,7 +28,10 @@ for (const folder of commandFolders) {
 
 client.once(Events.ClientReady, readyClient => {
     console.log(`Pronto! Logado como ${readyClient.user.tag}`);
+    loadMusicCache();
 });
+
+
 
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isChatInputCommand()) return;
