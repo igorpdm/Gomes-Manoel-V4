@@ -31,18 +31,22 @@ async function download(videoUrl) {
         const filePath = path.join(__dirname, "../musicas", audioFile);
 
         return new Promise((resolve, reject) => {
-            ytdl(videoUrl, {quality: "highestaudio"})
-                .pipe(fs.createWriteStream(filePath))
+            const stream = ytdl(videoUrl, { quality: "highestaudio" });
+            stream.on('error', (error) => {
+                if (error.message.includes('Video unavailable')) {
+                    console.error(`Erro: O vídeo está indisponível. URL: ${videoUrl}`);
+                } else {
+                    console.error(`Erro ao baixar a música: ${error}`);
+                }
+                reject(error);
+            });
+            stream.pipe(fs.createWriteStream(filePath))
                 .on('finish', () => {
                     saveMusic(musica);
                     resolve(musica);
                 })
                 .on('error', (error) => {
-                    if (error.message.includes('Video unavailable')) {
-                        console.error(`Erro: O vídeo está indisponível. URL: ${videoUrl}`);
-                    } else {
-                        console.error(`Erro ao baixar a música: ${error}`);
-                    }
+                    console.error(`Erro ao gravar a música: ${error}`);
                     reject(error);
                 });
         });
@@ -51,6 +55,7 @@ async function download(videoUrl) {
         return null;
     }
 }
+
 
 function saveMusic(music) {
     try {

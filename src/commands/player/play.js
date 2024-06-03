@@ -17,7 +17,7 @@ const getPlaylist = require('../../services/Playlist');
 const {cache, getVideoId} = require('../../utils/music')
 const ytpl = require('ytpl');
 
-let state = { isPlaying: false}
+let state = {isPlaying: false}
 
 const data = new SlashCommandBuilder()
     .setName('play')
@@ -66,9 +66,9 @@ async function playMusic(interaction, url) {
     try {
         let id = getVideoId(url)
         let musica;
-        if(cache.musicDict[id]){
+        if (cache.musicDict[id]) {
             musica = cache.musicDict[id]
-        }else{
+        } else {
             musica = await download(url);
         }
 
@@ -114,6 +114,13 @@ async function playMusic(interaction, url) {
             await interaction.editReply({embeds: [addedToQueueEmbed]});
         }
     } catch (error) {
+        const erroEmbed = new EmbedBuilder()
+            .setTitle("Erro")
+            .setDescription("Ocorreu um erro ao tocar a música.\n Verifique se a música possúi restrições de idade ou se o link é válido.")
+            .setAuthor({name: interaction.user.username, iconURL: interaction.user.avatarURL()})
+            .setThumbnail(interaction.guild.iconURL())
+            .setColor(0xFF0000);
+        await interaction.editReply({embeds: [erroEmbed]});
         console.error(`Erro ao executar o comando play: ${error}`);
     }
 }
@@ -137,21 +144,26 @@ async function playPlaylist(interaction, videos, url) {
 
         let isFirst = true;
 
-        for(const video of videos.items){
-            if(isFirst){
-                await playMusic(interaction, video.url);
-                isFirst = false;
-            }else{
-                let id = video.id;
-                if(cache.musicDict[id]){
-                    queue.push(cache.musicDict[id]);
-                }else{
-                    const musica = await download(video.url);
-                    if(musica != null) {
-                        queue.push(musica);
-                        //await sleep(500);
+        for (const video of videos.items) {
+            try {
+                if (isFirst) {
+                    await playMusic(interaction, video.url);
+                    isFirst = false;
+                } else {
+                    let id = video.id;
+                    if (cache.musicDict[id]) {
+                        queue.push(cache.musicDict[id]);
+                    } else {
+                        const musica = await download(video.url);
+                        if (musica != null) {
+                            queue.push(musica);
+                            //await sleep(500);
+                        }
                     }
                 }
+            } catch (error) {
+                console.error(`Erro ao baixar o vídeo: ${error}`);
+                // Você pode adicionar mais lógica de tratamento de erro aqui, se necessário
             }
         }
 
@@ -204,7 +216,7 @@ async function playNext(interaction, connection, player, command) {
         .setColor(0x57F287);
     if (command === "play") {
         await interaction.editReply({embeds: [tocando]});
-    }else if(command === "play2" ){
+    } else if (command === "play2") {
         await interaction.followUp({embeds: [tocando]});
     } else {
         await interaction.reply({embeds: [pulando]});
