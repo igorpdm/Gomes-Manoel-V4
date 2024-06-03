@@ -1,7 +1,6 @@
 const { getVoiceConnection } = require('@discordjs/voice');
 const queue = require('../../shared/queue');
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { state } = require('./play');
 
 const data = new SlashCommandBuilder()
     .setName('queue')
@@ -99,14 +98,14 @@ async function execute(interaction) {
                     .setStyle(ButtonStyle.Primary)
                     .setDisabled(currentPage === 0),
                 new ButtonBuilder()
+                    .setCustomId('close')
+                    .setLabel('Fechar')
+                    .setStyle(ButtonStyle.Danger),
+                new ButtonBuilder()
                     .setCustomId('next')
                     .setLabel('Próximo')
                     .setStyle(ButtonStyle.Primary)
-                    .setDisabled((currentPage + 1) * pageSize >= queue.length),
-                new ButtonBuilder()
-                    .setCustomId('close')
-                    .setLabel('Fechar')
-                    .setStyle(ButtonStyle.Danger)
+                    .setDisabled((currentPage + 1) * pageSize >= queue.length)
             );
 
         await i.update({ embeds: [newEmbed], components: [newRow] });

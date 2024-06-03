@@ -6,6 +6,10 @@
   "license": "MIT",
   "type": "commonjs",
   "private": true,
+  "scripts": {
+    "start": "node src/bot.js",
+    "dev": "nodemon src/bot.js"
+  },
   "dependencies": {
     "@discordjs/voice": "^0.17.0",
     "@distube/ytdl-core": "^4.13.3",
@@ -15,6 +19,7 @@
     "googleapis": "^137.1.0",
     "libsodium-wrappers": "^0.7.13",
     "path": "^0.12.7",
-    "ytpl": "^2.3.0"
+    "ytpl": "^2.3.0",
+    "ytsr": "^3.8.4"
   }
 }

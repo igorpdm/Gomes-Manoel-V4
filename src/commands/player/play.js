@@ -12,10 +12,9 @@ const path = require('path');
 const {download} = require('../../utils/music');
 require('libsodium-wrappers');
 const queue = require('../../shared/queue');
-const searchVideo = require('../../services/Search');
-const getPlaylist = require('../../services/Playlist');
 const {cache, getVideoId} = require('../../utils/music')
 const ytpl = require('ytpl');
+const ytsr = require('ytsr')
 
 let state = {isPlaying: false}
 
@@ -51,7 +50,8 @@ async function execute(interaction) {
         await playPlaylist(interaction, videos, url)
     } else {
         await interaction.reply({embeds: [embed]});
-        let videoUrl = await searchVideo(url)
+        let searchResult = await ytsr(url, {limit: 1})
+        let videoUrl = searchResult.items[0].url
         await playMusic(interaction, videoUrl);
     }
 }

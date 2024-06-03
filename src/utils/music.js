@@ -31,7 +31,7 @@ async function download(videoUrl) {
         const filePath = path.join(__dirname, "../musicas", audioFile);
 
         return new Promise((resolve, reject) => {
-            const stream = ytdl(videoUrl, { quality: "highestaudio" });
+            const stream = ytdl(videoUrl, { filter: 'audioonly'});
             stream.on('error', (error) => {
                 if (error.message.includes('Video unavailable')) {
                     console.error(`Erro: O vídeo está indisponível. URL: ${videoUrl}`);

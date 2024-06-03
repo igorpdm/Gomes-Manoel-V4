@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
-const { tokenTest } = require('./config.json');
+const { token } = require('./config.json');
 const { loadMusicCache } = require('./utils/music');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
@@ -55,4 +55,4 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
-client.login(tokenTest);
+client.login(token);
