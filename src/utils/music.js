@@ -1,7 +1,8 @@
 const ytdl = require("@distube/ytdl-core");
+const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
 const fs = require('fs');
 const path = require('path');
-const getVideoInfo = require('../services/Video');
+const ytsr = require('ytsr');
 
 const cache = {musicDict: {}};
 
@@ -19,42 +20,37 @@ class Music {
 
 async function download(videoUrl) {
     try {
-        const info = await getVideoInfo(getVideoId(videoUrl));
-        const id = info.id;
-        const nome = info.snippet.title;
-        const autor = info.snippet.channelTitle;
+        const info = await ytsr(videoUrl, {limit: 1, gl: 'BR'});
+        const id = info.items[0].id;
+        const nome = info.items[0].title;
+        const autor = info.items[0].author.name;
         const audioFile = `${id}.mp3`;
-        const duracao = convertISO8601ToSeconds(info.contentDetails.duration);
-        const capa = info.snippet.thumbnails.high.url;
+        const duracao = convertDurationToSeconds(info.items[0].duration);
+        const capa = info.items[0].bestThumbnail.url;
         const musica = new Music(nome, autor, audioFile, duracao, capa, id, videoUrl);
 
-        const filePath = path.join(__dirname, "../musicas", audioFile);
-
         return new Promise((resolve, reject) => {
-            const stream = ytdl(videoUrl, { quality: "highestaudio" });
-            stream.on('error', (error) => {
-                if (error.message.includes('Video unavailable')) {
-                    console.error(`Erro: O vídeo está indisponível. URL: ${videoUrl}`);
-                } else {
-                    console.error(`Erro ao baixar a música: ${error}`);
-                }
-                reject(error);
+            const worker = new Worker(path.join(__dirname, 'downloadWorker.js'), {
+                workerData: { videoUrl, audioFile }
             });
-            stream.pipe(fs.createWriteStream(filePath))
-                .on('finish', () => {
+            worker.on('message', (message) => {
+                if (message.error) {
+                    reject(message.error);
+                } else {
                     saveMusic(musica);
                     resolve(musica);
-                })
-                .on('error', (error) => {
-                    console.error(`Erro ao gravar a música: ${error}`);
-                    reject(error);
-                });
+                }
+            });
+            worker.on('error', (error) => {
+                reject(error);
+            });
         });
     } catch (error) {
         console.error(`Erro na função download: ${error} \n musica: ${videoUrl}`);
         return null;
     }
 }
+
 
 
 function saveMusic(music) {
@@ -111,16 +107,9 @@ function loadMusicCache() {
     }
 }
 
-// Função para converter a duração ISO 8601 para segundos
-function convertISO8601ToSeconds(duration) {
-    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-    let hours = 0, minutes = 0, seconds = 0;
-
-    if (match[1]) hours = parseInt(match[1].slice(0, -1));
-    if (match[2]) minutes = parseInt(match[2].slice(0, -1));
-    if (match[3]) seconds = parseInt(match[3].slice(0, -1));
-
-    return hours * 3600 + minutes * 60 + seconds;
+function convertDurationToSeconds(duration) {
+    const [minutes, seconds] = duration.split(':').map(Number);
+    return minutes * 60 + seconds;
 }
 
 
