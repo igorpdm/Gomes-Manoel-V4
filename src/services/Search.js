@@ -1,6 +1,6 @@
 const { google } = require('googleapis');
 const youtube = google.youtube('v3');
-const { apiKey } = require("../config.json")
+const { apiKey } = require("../../config.json")
 
 async function searchVideo(query) {
   try {

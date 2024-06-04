@@ -15,8 +15,10 @@ const queue = require('../../shared/queue');
 const {cache, getVideoId} = require('../../utils/music')
 const ytpl = require('ytpl');
 const ytsr = require('ytsr')
+const searchVideo = require('../../services/Search')
 
 let state = {isPlaying: false}
+let currentMusic = {musica: null, startTime: null}
 
 const data = new SlashCommandBuilder()
     .setName('play')
@@ -50,8 +52,9 @@ async function execute(interaction) {
         await playPlaylist(interaction, videos, url)
     } else {
         await interaction.reply({embeds: [embed]});
-        let searchResult = await ytsr(url, {limit: 1, gl: 'BR'})
-        let videoUrl = searchResult.items[0].url
+        //let searchResult = await ytsr(url, {limit: 1, gl: 'BR'})
+        //let videoUrl = searchResult.items[0].url
+        let videoUrl = await searchVideo(url);
         await playMusic(interaction, videoUrl);
     }
 }
@@ -171,8 +174,8 @@ async function playPlaylist(interaction, videos, url) {
         // await Promise.all(downloadPromises);
 
         console.log('Todos os vídeos da playlist foram baixados');
-
-        const playlistEmbed = new EmbedBuilder()
+        if(state.isPlaying){
+            const playlistEmbed = new EmbedBuilder()
             .setTitle("🎵 Playlist Adicionada")
             .setDescription(`${videos.items.length} músicas da [playlist](${url}) foram adicionados à fila!`)
             .setAuthor({name: interaction.user.username, iconURL: interaction.user.avatarURL()})
@@ -180,7 +183,9 @@ async function playPlaylist(interaction, videos, url) {
             .setColor(0x57F287)
 
         await interaction.editReply({embeds: [playlistEmbed]});
-
+        }else{
+            queue.length = 0;
+        }
     } catch (error) {
         console.error(`Erro ao tocar a playlist: ${error}`);
     }
@@ -194,25 +199,26 @@ async function playNext(interaction, connection, player, command) {
         return;
     }
 
-    const nextMusic = queue.shift();
-    const musicPath = path.join(__dirname, `../../musicas/${nextMusic.audioFile}`);
+    currentMusic.musica = queue.shift();
+    const musicPath = path.join(__dirname, `../../musicas/${currentMusic.musica.audioFile}`);
     const resource = createAudioResource(path.resolve(musicPath));
 
     player.play(resource);
+    currentMusic.startTime = Date.now();
     state.isPlaying = true;
 
     const tocando = new EmbedBuilder()
         .setTitle("🎵 Tocando")
-        .setDescription(`\`${formatDuration(nextMusic.duracao)}\` [${nextMusic.nome}](${nextMusic.url})`)
+        .setDescription(`\`${formatDuration(currentMusic.musica.duracao)}\` [${currentMusic.musica.nome}](${currentMusic.musica.url})`)
         .setAuthor({name: interaction.user.username, iconURL: interaction.user.avatarURL()})
-        .setThumbnail(nextMusic.capa)
+        .setThumbnail(currentMusic.musica.capa)
         .setColor(0x57F287);
 
     const pulando = new EmbedBuilder()
         .setTitle("🎵 Pulando")
-        .setDescription(`\`${formatDuration(nextMusic.duracao)}\` [${nextMusic.nome}](${nextMusic.url})`)
+        .setDescription(`\`${formatDuration(currentMusic.musica.duracao)}\` [${currentMusic.musica.nome}](${currentMusic.musica.url})`)
         .setAuthor({name: interaction.user.username, iconURL: interaction.user.avatarURL()})
-        .setThumbnail(nextMusic.capa)
+        .setThumbnail(currentMusic.musica.capa)
         .setColor(0x57F287);
     if (command === "play") {
         await interaction.editReply({embeds: [tocando]});
@@ -223,4 +229,4 @@ async function playNext(interaction, connection, player, command) {
     }
 }
 
-module.exports = {data, execute, state, playNext};
+module.exports = {data, execute, state, playNext, currentMusic, formatDuration};

@@ -3,6 +3,7 @@ const { Worker, isMainThread, parentPort, workerData } = require('worker_threads
 const fs = require('fs');
 const path = require('path');
 const ytsr = require('ytsr');
+const getVideoInfo = require('../services/Video');
 
 const cache = {musicDict: {}};
 
@@ -20,13 +21,15 @@ class Music {
 
 async function download(videoUrl) {
     try {
-        const info = await ytsr(videoUrl, {limit: 1, gl: 'BR'});
-        const id = info.items[0].id;
-        const nome = info.items[0].title;
-        const autor = info.items[0].author.name;
+        const info = await getVideoInfo(getVideoId(videoUrl));
+        //const info = await ytsr(videoUrl, {limit: 1, gl: 'BR'});
+        const id = info.id;
+        const nome = info.snippet.title;
+        const autor = info.snippet.channelTitle;
         const audioFile = `${id}.mp3`;
-        const duracao = convertDurationToSeconds(info.items[0].duration);
-        const capa = info.items[0].bestThumbnail.url;
+        //const duracao = convertDurationToSeconds(info.items[0].duration);
+        const duracao = convertISO8601ToSeconds(info.contentDetails.duration);
+        const capa = info.snippet.thumbnails.high.url;
         const musica = new Music(nome, autor, audioFile, duracao, capa, id, videoUrl);
 
         return new Promise((resolve, reject) => {
@@ -79,6 +82,17 @@ async function isDownloaded(url) {
     const id = getVideoId(url);
     const musica = cache.musicDict[id];
     return musica ? musica : false;
+}
+
+function convertISO8601ToSeconds(duration) {
+    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+    let hours = 0, minutes = 0, seconds = 0;
+
+    if (match[1]) hours = parseInt(match[1].slice(0, -1));
+    if (match[2]) minutes = parseInt(match[2].slice(0, -1));
+    if (match[3]) seconds = parseInt(match[3].slice(0, -1));
+
+    return hours * 3600 + minutes * 60 + seconds;
 }
 
 function getVideoId(url) {
